@@ -1,0 +1,5 @@
+{
+  "note": "Bayesian A/B Test Calculator History Storage",
+  "created": "This file will be automatically updated with your test history",
+  "format": "JSON array of test results"
+}

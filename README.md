@@ -30,14 +30,19 @@ To sync your test history across devices:
 1. Create a GitHub Gist:
    - Go to https://gist.github.com/
    - Sign in to your GitHub account
-   - Create a new private gist (no need to add any files)
+   - Click "New gist"
+   - Set the filename to `ab_test_history.json`
+   - Copy the content from [ab_test_history_initial.json](ab_test_history_initial.json) into the file content
+   - Select "Private" (recommended for privacy)
+   - Click "Create secret gist"
    - Copy the Gist ID from the URL (the long string of characters)
 
 2. Create a GitHub Personal Access Token:
    - Go to https://github.com/settings/tokens
    - Click "Generate new token"
+   - Give it a descriptive name like "AB Test Calculator"
    - Select "Gist" scope
-   - Generate the token and copy it
+   - Generate the token and copy it (keep it secure!)
 
 3. Configure sync in the calculator:
    - Open the "Test History" tab
@@ -55,4 +60,4 @@ The calculator uses Monte Carlo simulation to perform Bayesian analysis with Bet
 
 ## Privacy
 
-All data is stored locally in your browser's localStorage. When using GitHub Gist sync, your data is stored in a private Gist that only you can access.
+All data is stored locally in your browser's localStorage. When using GitHub Gist sync, your data is stored in a private Gist that only you can access with your personal access token.

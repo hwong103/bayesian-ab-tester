@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bayesian A/B Test Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .tab-nav {
+            background: #f8f9fa;
+            padding: 0;
+            display: flex;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .input-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="number"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .advanced-options {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .advanced-toggle {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: underline;
+            margin-bottom: 15px;
+        }
+        
+        .advanced-inputs {
+            display: none;
+        }
+        
+        .advanced-inputs.show {
+            display: block;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .calculate-btn {
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .results-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #28a745;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .metric-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        
+        .metric-small {
+            font-size: 18px;
+        }
+        
+        .positive {
+            color: #28a745;
+        }
+        
+        .negative {
+            color: #dc3545;
+        }
+        
+        .sample-size-section {
+            grid-column: 1 / -1;
+            background: #fff3cd;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #ffc107;
+            margin-top: 20px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .history-table th,
+        .history-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .history-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .history-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .progress-chart {
+            width: 100%;
+            height: 300px;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .tab-nav {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bayesian A/B Test Calculator</h1>
+            <p>Statistical analysis with progress tracking and sample size estimation</p>
+        </div>
+        
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('calculator')">Calculator</button>
+            <button class="tab-btn" onclick="switchTab('history')">Test History</button>
+            <button class="tab-btn" onclick="switchTab('progress')">Progress Tracking</button>
+        </div>
+        
+        <!-- Calculator Tab -->
+        <div id="calculator" class="tab-content active">
+            <div class="main-content">
+                <div class="input-section">
+                    <h3>Test Data</h3>
+                    
+                    <div class="input-group">
+                        <label>Test Name</label>
+                        <input type="text" id="test-name" placeholder="Enter test name (optional)" value="">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Group A (Control)</label>
+                        <div class="input-row">
+                            <div>
+                                <input type="number" id="a-successes" placeholder="Successes" value="248" min="0">
+                                <small>Successes</small>
+                            </div>
+                            <div>
+                                <input type="number" id="a-total" placeholder="Total" value="293" min="1">
+                                <small>Total trials</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Group B (Variant)</label>
+                        <div class="input-row">
+                            <div>
+                                <input type="number" id="b-successes" placeholder="Successes" value="271" min="0">
+                                <small>Successes</small>
+                            </div>
+                            <div>
+                                <input type="number" id="b-total" placeholder="Total" value="299" min="1">
+                                <small>Total trials</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="advanced-options">
+                        <button class="advanced-toggle" onclick="toggleAdvanced()">Advanced Options</button>
+                        <div class="advanced-inputs" id="advanced-inputs">
+                            <div class="input-group">
+                                <label>Simulation Settings</label>
+                                <div class="input-row">
+                                    <div>
+                                        <input type="number" id="n-simulations" placeholder="100000" value="100000" min="1000">
+                                        <small>Simulations</small>
+                                    </div>
+                                    <div>
+                                        <input type="number" id="target-width" placeholder="5.0" value="5.0" min="0.1" step="0.1">
+                                        <small>Target CI width (%)</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label>Beta Prior Parameters</label>
+                                <div class="input-row">
+                                    <div>
+                                        <input type="number" id="alpha-prior" placeholder="1" value="1" min="0.1" step="0.1">
+                                        <small>Alpha</small>
+                                    </div>
+                                    <div>
+                                        <input type="number" id="beta-prior" placeholder="1" value="1" min="0.1" step="0.1">
+                                        <small>Beta</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary calculate-btn" onclick="runCalculation()">Run Bayesian Analysis</button>
+                    <button class="btn btn-success calculate-btn" onclick="saveResult()">Save Result to History</button>
+                </div>
+                
+                <div class="results-section">
+                    <h3>Results</h3>
+                    <div id="results-content">
+                        <p class="loading">Enter your test data and click "Run Bayesian Analysis" to see results.</p>
+                    </div>
+                </div>
+                
+                <div class="sample-size-section" id="sample-size-section" style="display: none;">
+                    <h3>Sample Size Recommendation</h3>
+                    <div id="sample-size-content"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- History Tab -->
+        <div id="history" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>Test History</h3>
+                <div>
+                    <button class="btn btn-secondary" onclick="exportResults()">Export CSV</button>
+                    <button class="btn btn-danger" onclick="clearHistory()">Clear All</button>
+                </div>
+            </div>
+            
+            <div id="history-content">
+                <p class="loading">No saved results yet. Run calculations and save them to build your test history.</p>
+            </div>
+        </div>
+        
+        <!-- Progress Tab -->
+        <div id="progress" class="tab-content">
+            <h3>Progress Tracking</h3>
+            <div style="margin-bottom: 20px;">
+                <label>Select Test to Track:</label>
+                <select id="test-selector" onchange="updateProgressChart()" style="margin-left: 10px; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                    <option value="">Select a test...</option>
+                </select>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="progress-chart" class="progress-chart"></canvas>
+            </div>
+            
+            <div id="progress-stats" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script>
+        let currentResults = null;
+        let progressChart = null;
+        
+        // Local storage management
+        function saveToStorage(key, data) {
+            try {
+                const stored = JSON.parse(window.localStorage.getItem('abTestHistory') || '[]');
+                stored.push(data);
+                window.localStorage.setItem('abTestHistory', JSON.stringify(stored));
+                return true;
+            } catch (error) {
+                console.error('Storage not available, using in-memory storage');
+                return false;
+            }
+        }
+        
+        function getFromStorage() {
+            try {
+                return JSON.parse(window.localStorage.getItem('abTestHistory') || '[]');
+            } catch (error) {
+                console.error('Storage not available');
+                return [];
+            }
+        }
+        
+        function clearStorage() {
+            try {
+                window.localStorage.removeItem('abTestHistory');
+                return true;
+            } catch (error) {
+                console.error('Storage not available');
+                return false;
+            }
+        }
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab and activate button
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Update content based on tab
+            if (tabName === 'history') {
+                loadHistory();
+            } else if (tabName === 'progress') {
+                loadProgressTracking();
+            }
+        }
+        
+        // Utility function to generate random samples from Beta distribution
+        function betaRandom(alpha, beta) {
+            const gammaA = gammaRandom(alpha, 1);
+            const gammaB = gammaRandom(beta, 1);
+            return gammaA / (gammaA + gammaB);
+        }
+        
+        function gammaRandom(shape, scale) {
+            if (shape < 1) {
+                return gammaRandom(shape + 1, scale) * Math.pow(Math.random(), 1 / shape);
+            }
+            
+            const d = shape - 1/3;
+            const c = 1 / Math.sqrt(9 * d);
+            
+            while (true) {
+                let x, v;
+                do {
+                    x = normalRandom();
+                    v = 1 + c * x;
+                } while (v <= 0);
+                
+                v = v * v * v;
+                const u = Math.random();
+                
+                if (u < 1 - 0.0331 * x * x * x * x) {
+                    return d * v * scale;
+                }
+                
+                if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) {
+                    return d * v * scale;
+                }
+            }
+        }
+        
+        let normalRandomSpare = null;
+        function normalRandom() {
+            if (normalRandomSpare !== null) {
+                const tmp = normalRandomSpare;
+                normalRandomSpare = null;
+                return tmp;
+            }
+            
+            const u = Math.random();
+            const v = Math.random();
+            const mag = Math.sqrt(-2 * Math.log(u));
+            normalRandomSpare = mag * Math.cos(2 * Math.PI * v);
+            return mag * Math.sin(2 * Math.PI * v);
+        }
+        
+        function runSimulation(aSuccesses, aTotal, bSuccesses, bTotal, nSimulations = 100000, alphaPrior = 1, betaPrior = 1) {
+            const aAlpha = aSuccesses + alphaPrior;
+            const aBeta = aTotal - aSuccesses + betaPrior;
+            const bAlpha = bSuccesses + alphaPrior;
+            const bBeta = bTotal - bSuccesses + betaPrior;
+            
+            const aSamples = [];
+            const bSamples = [];
+            const relativeUplift = [];
+            
+            for (let i = 0; i < nSimulations; i++) {
+                const aSample = betaRandom(aAlpha, aBeta);
+                const bSample = betaRandom(bAlpha, bBeta);
+                
+                aSamples.push(aSample);
+                bSamples.push(bSample);
+                relativeUplift.push((bSample - aSample) / aSample);
+            }
+            
+            const meanUplift = relativeUplift.reduce((sum, val) => sum + val, 0) / nSimulations * 100;
+            
+            const sortedUplift = relativeUplift.map(x => x * 100).sort((a, b) => a - b);
+            const ciLower = sortedUplift[Math.floor(0.025 * nSimulations)];
+            const ciUpper = sortedUplift[Math.floor(0.975 * nSimulations)];
+            const ciWidth = ciUpper - ciLower;
+            
+            const probBBetter = bSamples.filter((b, i) => b > aSamples[i]).length / nSimulations;
+            
+            const expectedLoss = aSamples.map((a, i) => Math.max(a - bSamples[i], 0))
+                                        .reduce((sum, val) => sum + val, 0) / nSimulations;
+            
+            return {
+                aConversion: aSuccesses / aTotal,
+                bConversion: bSuccesses / bTotal,
+                meanUplift: meanUplift,
+                ciLower: ciLower,
+                ciUpper: ciUpper,
+                ciWidth: ciWidth,
+                probBBetter: probBBetter,
+                expectedLoss: expectedLoss,
+                aSamples: aSamples,
+                bSamples: bSamples
+            };
+        }
+        
+        function calculateAdditionalSampleSize(aSuccesses, aTotal, bSuccesses, bTotal, targetWidth = 5.0) {
+            const aRate = aSuccesses / aTotal;
+            const bRate = bSuccesses / bTotal;
+            
+            const initialResults = runSimulation(aSuccesses, aTotal, bSuccesses, bTotal, 50000);
+            const currentWidth = initialResults.ciWidth;
+            
+            if (currentWidth <= targetWidth) {
+                return {
+                    additionalSamplesNeededA: 0,
+                    additionalSamplesNeededB: 0,
+                    totalSamplesA: aTotal,
+                    totalSamplesB: bTotal,
+                    estimatedFinalWidth: currentWidth
+                };
+            }
+            
+            const scalingFactor = Math.pow(currentWidth / targetWidth, 2);
+            let additionalA = Math.ceil((scalingFactor - 1) * aTotal);
+            let additionalB = Math.ceil((scalingFactor - 1) * bTotal);
+            
+            function testWidth(addA, addB) {
+                const newASuccesses = Math.round(aRate * addA);
+                const newBSuccesses = Math.round(bRate * addB);
+                
+                const testResults = runSimulation(
+                    aSuccesses + newASuccesses,
+                    aTotal + addA,
+                    bSuccesses + newBSuccesses,
+                    bTotal + addB,
+                    25000
+                );
+                
+                return testResults.ciWidth;
+            }
+            
+            let lowFactor = 0.7;
+            let highFactor = 1.3;
+            let bestAdditionalA = additionalA;
+            let bestAdditionalB = additionalB;
+            let bestWidth = testWidth(additionalA, additionalB);
+            
+            if (bestWidth > targetWidth) {
+                highFactor = 2.0;
+            }
+            
+            for (let i = 0; i < 5; i++) {
+                const midFactor = (lowFactor + highFactor) / 2;
+                const midAdditionalA = Math.ceil(midFactor * additionalA);
+                const midAdditionalB = Math.ceil(midFactor * additionalB);
+                
+                const width = testWidth(midAdditionalA, midAdditionalB);
+                
+                if (width < bestWidth && Math.abs(width - targetWidth) < Math.abs(bestWidth - targetWidth)) {
+                    bestWidth = width;
+                    bestAdditionalA = midAdditionalA;
+                    bestAdditionalB = midAdditionalB;
+                }
+                
+                if (width > targetWidth) {
+                    lowFactor = midFactor;
+                } else {
+                    highFactor = midFactor;
+                }
+            }
+            
+            bestAdditionalA = Math.ceil(bestAdditionalA / 10) * 10;
+            bestAdditionalB = Math.ceil(bestAdditionalB / 10) * 10;
+            
+            return {
+                additionalSamplesNeededA: bestAdditionalA,
+                additionalSamplesNeededB: bestAdditionalB,
+                totalSamplesA: aTotal + bestAdditionalA,
+                totalSamplesB: bTotal + bestAdditionalB,
+                estimatedFinalWidth: bestWidth
+            };
+        }
+        
+        function toggleAdvanced() {
+            const advancedInputs = document.getElementById('advanced-inputs');
+            advancedInputs.classList.toggle('show');
+        }
+        
+        async function runCalculation() {
+            const button = document.querySelector('.calculate-btn');
+            const resultsContent = document.getElementById('results-content');
+            const sampleSizeSection = document.getElementById('sample-size-section');
+            const sampleSizeContent = document.getElementById('sample-size-content');
+            
+            try {
+                const aSuccesses = parseInt(document.getElementById('a-successes').value) || 0;
+                const aTotal = parseInt(document.getElementById('a-total').value) || 1;
+                const bSuccesses = parseInt(document.getElementById('b-successes').value) || 0;
+                const bTotal = parseInt(document.getElementById('b-total').value) || 1;
+                const nSimulations = parseInt(document.getElementById('n-simulations').value) || 100000;
+                const alphaPrior = parseFloat(document.getElementById('alpha-prior').value) || 1;
+                const betaPrior = parseFloat(document.getElementById('beta-prior').value) || 1;
+                const targetWidth = parseFloat(document.getElementById('target-width').value) || 5.0;
+                
+                if (aSuccesses > aTotal || bSuccesses > bTotal) {
+                    throw new Error('Successes cannot exceed total trials');
+                }
+                
+                if (aTotal <= 0 || bTotal <= 0) {
+                    throw new Error('Total trials must be greater than 0');
+                }
+                
+                button.disabled = true;
+                button.textContent = 'Calculating...';
+                resultsContent.innerHTML = '<p class="loading">Running Bayesian simulation...</p>';
+                sampleSizeSection.style.display = 'none';
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const results = runSimulation(aSuccesses, aTotal, bSuccesses, bTotal, nSimulations, alphaPrior, betaPrior);
+                currentResults = {
+                    ...results,
+                    aSuccesses,
+                    aTotal,
+                    bSuccesses,
+                    bTotal,
+                    nSimulations,
+                    alphaPrior,
+                    betaPrior,
+                    targetWidth,
+                    timestamp: new Date().toISOString()
+                };
+                
+                const upliftClass = results.meanUplift > 0 ? 'positive' : 'negative';
+                const probClass = results.probBBetter > 0.5 ? 'positive' : 'negative';
+                
+                resultsContent.innerHTML = `
+                    <div class="metric-card">
+                        <div class="metric-label">Conversion Rates</div>
+                        <div class="metric-value metric-small">
+                            A: ${(results.aConversion * 100).toFixed(2)}% | 
+                            B: ${(results.bConversion * 100).toFixed(2)}%
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Estimated Relative Uplift</div>
+                        <div class="metric-value ${upliftClass}">${results.meanUplift.toFixed(2)}%</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">95% Credible Interval</div>
+                        <div class="metric-value metric-small">
+                            [${results.ciLower.toFixed(2)}%, ${results.ciUpper.toFixed(2)}%]
+                        </div>
+                        <small>Width: ${results.ciWidth.toFixed(2)}%</small>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Probability B > A</div>
+                        <div class="metric-value ${probClass}">${(results.probBBetter * 100).toFixed(1)}%</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Expected Loss</div>
+                        <div class="metric-value metric-small">${results.expectedLoss.toFixed(4)}</div>
+                    </div>
+                `;
+                
+                const sampleSizeResults = calculateAdditionalSampleSize(aSuccesses, aTotal, bSuccesses, bTotal, targetWidth);
+                
+                sampleSizeContent.innerHTML = `
+                    <div class="metric-card">
+                        <div class="metric-label">Additional Samples Needed</div>
+                        <div class="metric-value metric-small">
+                            A: +${sampleSizeResults.additionalSamplesNeededA} | 
+                            B: +${sampleSizeResults.additionalSamplesNeededB}
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Recommended Total Sample Size</div>
+                        <div class="metric-value metric-small">
+                            A: ${sampleSizeResults.totalSamplesA} | 
+                            B: ${sampleSizeResults.totalSamplesB}
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Estimated Final CI Width</div>
+                        <div class="metric-value">${sampleSizeResults.estimatedFinalWidth.toFixed(2)}%</div>
+                    </div>
+                `;
+                
+                sampleSizeSection.

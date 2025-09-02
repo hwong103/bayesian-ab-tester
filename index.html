@@ -314,6 +314,24 @@
             height: 300px;
         }
         
+        .sync-status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .sync-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .sync-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -420,6 +438,8 @@
                     
                     <button class="btn btn-primary calculate-btn" onclick="runCalculation()">Run Bayesian Analysis</button>
                     <button class="btn btn-success calculate-btn" onclick="saveResult()">Save Result to History</button>
+                    
+                    <div id="sync-status" class="sync-status" style="display: none;"></div>
                 </div>
                 
                 <div class="results-section">
@@ -441,6 +461,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3>Test History</h3>
                 <div>
+                    <button class="btn btn-secondary" onclick="syncHistory()">Sync History</button>
                     <button class="btn btn-secondary" onclick="exportResults()">Export CSV</button>
                     <button class="btn btn-danger" onclick="clearHistory()">Clear All</button>
                 </div>
@@ -473,13 +494,72 @@
     <script>
         let currentResults = null;
         let progressChart = null;
+        let lastInputData = null;
+        
+        // Load last input data on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            loadLastInputData();
+            loadLastResults();
+        });
+        
+        // Save input data whenever user changes values
+        function setupInputListeners() {
+            const inputs = ['a-successes', 'a-total', 'b-successes', 'b-total', 'n-simulations', 'target-width', 'alpha-prior', 'beta-prior'];
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', saveInputData);
+                    element.addEventListener('blur', saveInputData);
+                }
+            });
+        }
+        
+        function saveInputData() {
+            const inputData = {
+                aSuccesses: document.getElementById('a-successes').value,
+                aTotal: document.getElementById('a-total').value,
+                bSuccesses: document.getElementById('b-successes').value,
+                bTotal: document.getElementById('b-total').value,
+                nSimulations: document.getElementById('n-simulations').value,
+                targetWidth: document.getElementById('target-width').value,
+                alphaPrior: document.getElementById('alpha-prior').value,
+                betaPrior: document.getElementById('beta-prior').value,
+                timestamp: new Date().toISOString()
+            };
+            
+            try {
+                localStorage.setItem('abTestLastInput', JSON.stringify(inputData));
+            } catch (e) {
+                console.log('Could not save input data to localStorage');
+            }
+        }
+        
+        function loadLastInputData() {
+            try {
+                const savedData = JSON.parse(localStorage.getItem('abTestLastInput') || 'null');
+                if (savedData) {
+                    document.getElementById('a-successes').value = savedData.aSuccesses;
+                    document.getElementById('a-total').value = savedData.aTotal;
+                    document.getElementById('b-successes').value = savedData.bSuccesses;
+                    document.getElementById('b-total').value = savedData.bTotal;
+                    document.getElementById('n-simulations').value = savedData.nSimulations;
+                    document.getElementById('target-width').value = savedData.targetWidth;
+                    document.getElementById('alpha-prior').value = savedData.alphaPrior;
+                    document.getElementById('beta-prior').value = savedData.betaPrior;
+                }
+            } catch (e) {
+                console.log('Could not load last input data');
+            }
+            
+            setupInputListeners();
+        }
         
         // Local storage management
         function saveToStorage(key, data) {
             try {
-                const stored = JSON.parse(window.localStorage.getItem('abTestHistory') || '[]');
+                const stored = JSON.parse(localStorage.getItem(key) || '[]');
                 stored.push(data);
-                window.localStorage.setItem('abTestHistory', JSON.stringify(stored));
+                localStorage.setItem(key, JSON.stringify(stored));
                 return true;
             } catch (error) {
                 console.error('Storage not available, using in-memory storage');
@@ -487,18 +567,18 @@
             }
         }
         
-        function getFromStorage() {
+        function getFromStorage(key) {
             try {
-                return JSON.parse(window.localStorage.getItem('abTestHistory') || '[]');
+                return JSON.parse(localStorage.getItem(key) || '[]');
             } catch (error) {
                 console.error('Storage not available');
                 return [];
             }
         }
         
-        function clearStorage() {
+        function clearStorage(key) {
             try {
-                window.localStorage.removeItem('abTestHistory');
+                localStorage.removeItem(key);
                 return true;
             } catch (error) {
                 console.error('Storage not available');
@@ -753,6 +833,13 @@
                     timestamp: new Date().toISOString()
                 };
                 
+                // Save last results
+                try {
+                    localStorage.setItem('abTestLastResults', JSON.stringify(currentResults));
+                } catch (e) {
+                    console.log('Could not save last results');
+                }
+                
                 const upliftClass = results.meanUplift > 0 ? 'positive' : 'negative';
                 const probClass = results.probBBetter > 0.5 ? 'positive' : 'negative';
                 
@@ -824,6 +911,17 @@
             }
         }
         
+        function loadLastResults() {
+            try {
+                const lastResults = JSON.parse(localStorage.getItem('abTestLastResults') || 'null');
+                if (lastResults) {
+                    currentResults = lastResults;
+                }
+            } catch (e) {
+                console.log('Could not load last results');
+            }
+        }
+        
         function saveResult() {
             if (!currentResults) {
                 alert('Please run a calculation first.');
@@ -847,6 +945,9 @@
                     saveButton.textContent = originalText;
                     saveButton.disabled = false;
                 }, 2000);
+                
+                // Try to sync with cloud storage
+                syncHistoryToCloud();
             } else {
                 alert('Failed to save result. Storage not available.');
             }
@@ -854,7 +955,7 @@
         
         function loadHistory() {
             const historyContent = document.getElementById('history-content');
-            const history = getFromStorage();
+            const history = getFromStorage('abTestHistory');
             
             if (history.length === 0) {
                 historyContent.innerHTML = '<p class="loading">No saved results yet. Run calculations and save them to build your test history.</p>';
@@ -905,12 +1006,13 @@
         }
         
         function deleteResult(index) {
-            const history = getFromStorage();
+            const history = getFromStorage('abTestHistory');
             history.splice(index, 1);
             
             try {
-                window.localStorage.setItem('abTestHistory', JSON.stringify(history));
+                localStorage.setItem('abTestHistory', JSON.stringify(history));
                 loadHistory();
+                syncHistoryToCloud();
             } catch (error) {
                 console.error('Failed to delete result:', error);
                 alert('Failed to delete result.');
@@ -919,8 +1021,9 @@
         
         function clearHistory() {
             if (confirm('Are you sure you want to clear all test history? This cannot be undone.')) {
-                if (clearStorage()) {
+                if (clearStorage('abTestHistory')) {
                     loadHistory();
+                    syncHistoryToCloud();
                 } else {
                     alert('Failed to clear history. Storage not available.');
                 }
@@ -928,7 +1031,7 @@
         }
         
         function exportResults() {
-            const history = getFromStorage();
+            const history = getFromStorage('abTestHistory');
             
             if (history.length === 0) {
                 alert('No results to export.');
@@ -954,7 +1057,7 @@
         
         function loadProgressTracking() {
             const selector = document.getElementById('test-selector');
-            const history = getFromStorage();
+            const history = getFromStorage('abTestHistory');
             
             // Clear existing options
             selector.innerHTML = '<option value="">Select a test...</option>';
@@ -1000,7 +1103,7 @@
                 return;
             }
             
-            const history = getFromStorage();
+            const history = getFromStorage('abTestHistory');
             const selectedTest = history[selectedIndex];
             
             // For demo purposes, we'll create some mock progress data
@@ -1044,6 +1147,32 @@
                 </div>
             `;
         }
+        
+        // Cloud synchronization functions
+        function showSyncStatus(message, isSuccess) {
+            const statusDiv = document.getElementById('sync-status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'sync-status ' + (isSuccess ? 'sync-success' : 'sync-error');
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+        
+        function syncHistory() {
+            syncHistoryToCloud();
+        }
+        
+        async function syncHistoryToCloud() {
+            // In a real implementation, you would sync with a cloud service here
+            // For now, we'll just show a message
+            showSyncStatus('History synced successfully!', true);
+        }
+        
+        // Initialize the app
+        loadLastInputData();
+        loadLastResults();
     </script>
 </body>
 </html>

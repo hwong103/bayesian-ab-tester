@@ -332,7 +332,7 @@
             color: #721c24;
         }
         
-        .gist-setup {
+        .supabase-setup {
             background: #e7f3ff;
             padding: 15px;
             border-radius: 8px;
@@ -340,7 +340,7 @@
             border-left: 4px solid #007bff;
         }
         
-        .gist-setup input {
+        .supabase-setup input {
             width: 100%;
             padding: 8px;
             margin: 5px 0;
@@ -375,9 +375,9 @@
         </div>
         
         <div class="tab-nav">
-            <button class="tab-btn active" onclick="switchTab('calculator')">Calculator</button>
-            <button class="tab-btn" onclick="switchTab('history')">Test History</button>
-            <button class="tab-btn" onclick="switchTab('progress')">Progress Tracking</button>
+            <button class="tab-btn active" id="calculator-tab">Calculator</button>
+            <button class="tab-btn" id="history-tab">Test History</button>
+            <button class="tab-btn" id="progress-tab">Progress Tracking</button>
         </div>
         
         <!-- Calculator Tab -->
@@ -477,19 +477,19 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3>Test History</h3>
                 <div>
-                    <button class="btn btn-secondary" onclick="setupGist()">Setup Gist Sync</button>
-                    <button class="btn btn-secondary" onclick="syncWithGist()">Sync with Gist</button>
+                    <button class="btn btn-secondary" onclick="setupSupabase()">Setup Supabase Sync</button>
+                    <button class="btn btn-secondary" onclick="syncWithSupabase()">Sync with Supabase</button>
                     <button class="btn btn-secondary" onclick="exportResults()">Export CSV</button>
                     <button class="btn btn-danger" onclick="clearHistory()">Clear All</button>
                 </div>
             </div>
             
-            <div id="gist-setup" class="gist-setup" style="display: none;">
-                <h4>GitHub Gist Setup</h4>
-                <p>To enable cross-device sync, create a GitHub Gist and enter its ID below:</p>
-                <input type="text" id="gist-id" placeholder="Enter Gist ID (e.g., abc123def456...)" />
-                <input type="password" id="github-token" placeholder="Enter GitHub Personal Access Token" />
-                <button class="btn btn-primary" onclick="saveGistConfig()">Save Configuration</button>
+            <div id="supabase-setup" class="supabase-setup" style="display: none;">
+                <h4>Supabase Setup</h4>
+                <p>To enable cross-device sync, enter your Supabase credentials below:</p>
+                <input type="text" id="supabase-url" placeholder="Enter Supabase URL (e.g., https://your-project.supabase.co)" />
+                <input type="password" id="supabase-anon-key" placeholder="Enter Supabase Anonymous Key" />
+                <button class="btn btn-primary" onclick="saveSupabaseConfig()">Save Configuration</button>
             </div>
             
             <div id="history-content">
@@ -516,15 +516,17 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         let currentResults = null;
         let progressChart = null;
         let lastInputData = null;
-        let gistConfig = null;
+        let supabase = null;
+        let supabaseConfig = null;
         
         // Load configuration on page load
         window.addEventListener('DOMContentLoaded', function() {
-            loadGistConfig();
+            loadSupabaseConfig();
             loadLastInputData();
             loadLastResults();
         });
@@ -614,7 +616,7 @@
         }
         
         // Tab switching
-        function switchTab(tabName) {
+        async function switchTab(tabName) {
             // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
@@ -631,7 +633,7 @@
             
             // Update content based on tab
             if (tabName === 'history') {
-                loadHistory();
+                await loadHistory();
             } else if (tabName === 'progress') {
                 loadProgressTracking();
             }
@@ -973,15 +975,25 @@
                     saveButton.disabled = false;
                 }, 2000);
                 
-                // Try to sync with Gist
-                syncHistoryToGist();
+                // Try to sync with Supabase
+                syncHistoryToSupabase();
             } else {
                 alert('Failed to save result. Storage not available.');
             }
         }
         
-        function loadHistory() {
+        async function loadHistory() {
             const historyContent = document.getElementById('history-content');
+            
+            // Try to fetch from Supabase first if available
+            if (supabase) {
+                try {
+                    await fetchHistoryFromSupabase();
+                } catch (error) {
+                    console.log('Failed to fetch from Supabase, using local storage');
+                }
+            }
+            
             const history = getFromStorage('abTestHistory');
             
             if (history.length === 0) {
@@ -1039,7 +1051,7 @@
             try {
                 localStorage.setItem('abTestHistory', JSON.stringify(history));
                 loadHistory();
-                syncHistoryToGist();
+                syncHistoryToSupabase();
             } catch (error) {
                 console.error('Failed to delete result:', error);
                 alert('Failed to delete result.');
@@ -1050,7 +1062,7 @@
             if (confirm('Are you sure you want to clear all test history? This cannot be undone.')) {
                 if (clearStorage('abTestHistory')) {
                     loadHistory();
-                    syncHistoryToGist();
+                    syncHistoryToSupabase();
                 } else {
                     alert('Failed to clear history. Storage not available.');
                 }
@@ -1175,124 +1187,196 @@
             `;
         }
         
-        // GitHub Gist functions
-        function setupGist() {
-            document.getElementById('gist-setup').style.display = 'block';
-            if (gistConfig) {
-                document.getElementById('gist-id').value = gistConfig.gistId || '';
+        // Supabase functions
+        function setupSupabase() {
+            document.getElementById('supabase-setup').style.display = 'block';
+            if (supabaseConfig) {
+                document.getElementById('supabase-url').value = supabaseConfig.url || '';
             }
         }
         
-        function saveGistConfig() {
-            const gistId = document.getElementById('gist-id').value.trim();
-            const token = document.getElementById('github-token').value.trim();
+        function saveSupabaseConfig() {
+            const url = document.getElementById('supabase-url').value.trim();
+            const anonKey = document.getElementById('supabase-anon-key').value.trim();
             
-            if (!gistId || !token) {
-                alert('Please enter both Gist ID and GitHub token');
+            if (!url || !anonKey) {
+                alert('Please enter both Supabase URL and Anonymous Key');
                 return;
             }
             
-            gistConfig = {
-                gistId: gistId,
-                token: token
+            supabaseConfig = {
+                url: url,
+                anonKey: anonKey
             };
             
             try {
-                localStorage.setItem('abTestGistConfig', JSON.stringify(gistConfig));
-                document.getElementById('gist-setup').style.display = 'none';
-                document.getElementById('github-token').value = ''; // Clear token field for security
-                showSyncStatus('Gist configuration saved successfully!', true);
+                localStorage.setItem('abTestSupabaseConfig', JSON.stringify(supabaseConfig));
+                document.getElementById('supabase-setup').style.display = 'none';
+                document.getElementById('supabase-anon-key').value = ''; // Clear key field for security
+                
+                // Initialize Supabase client
+                initializeSupabase();
+                
+                showSyncStatus('Supabase configuration saved successfully!', true);
             } catch (e) {
-                showSyncStatus('Failed to save Gist configuration', false);
+                showSyncStatus('Failed to save Supabase configuration', false);
             }
         }
         
-        function loadGistConfig() {
+        function loadSupabaseConfig() {
             try {
-                gistConfig = JSON.parse(localStorage.getItem('abTestGistConfig') || 'null');
+                supabaseConfig = JSON.parse(localStorage.getItem('abTestSupabaseConfig') || 'null');
+                if (supabaseConfig) {
+                    initializeSupabase();
+                }
             } catch (e) {
-                gistConfig = null;
+                supabaseConfig = null;
             }
         }
         
-        async function syncWithGist() {
-            if (!gistConfig) {
-                alert('Please configure Gist sync first');
-                setupGist();
+        function initializeSupabase() {
+            if (supabaseConfig) {
+                supabase = window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey);
+            }
+        }
+        
+        async function syncWithSupabase() {
+            if (!supabase) {
+                alert('Please configure Supabase sync first');
+                setupSupabase();
                 return;
             }
             
-            // First sync local changes to Gist, then fetch any remote changes
-            await syncHistoryToGist();
-            await fetchHistoryFromGist();
+            // First sync local changes to Supabase, then fetch any remote changes
+            await syncHistoryToSupabase();
+            await fetchHistoryFromSupabase();
         }
         
-        async function syncHistoryToGist() {
-            if (!gistConfig) return;
+        async function syncHistoryToSupabase() {
+            if (!supabase) return;
             
             try {
                 const localHistory = getFromStorage('abTestHistory');
-                const historyJson = JSON.stringify(localHistory, null, 2);
                 
-                const response = await fetch(`https://api.github.com/gists/${gistConfig.gistId}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': `token ${gistConfig.token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        files: {
-                            'ab_test_history.json': {
-                                content: historyJson
-                            }
-                        }
-                    })
-                });
-                
-                if (response.ok) {
-                    showSyncStatus('History synced to Gist successfully!', true);
-                } else {
-                    const errorData = await response.json();
-                    showSyncStatus(`Failed to sync to Gist: ${errorData.message}`, false);
+                // Get current user
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    // Try to sign in anonymously
+                    const { data, error } = await supabase.auth.signInAnonymously();
+                    if (error) {
+                        showSyncStatus(`Failed to authenticate with Supabase: ${error.message}`, false);
+                        return;
+                    }
                 }
+                
+                // Insert or update each history item
+                const results = [];
+                for (const item of localHistory) {
+                    // Convert item to match Supabase schema
+                    const supabaseItem = {
+                        test_name: item.testName,
+                        a_successes: item.aSuccesses,
+                        a_total: item.aTotal,
+                        b_successes: item.bSuccesses,
+                        b_total: item.bTotal,
+                        a_conversion_rate: item.aConversion,
+                        b_conversion_rate: item.bConversion,
+                        mean_uplift: item.meanUplift,
+                        ci_lower: item.ciLower,
+                        ci_upper: item.ciUpper,
+                        ci_width: item.ciWidth,
+                        prob_b_better: item.probBBetter,
+                        expected_loss: item.expectedLoss,
+                        n_simulations: item.nSimulations,
+                        alpha_prior: item.alphaPrior,
+                        beta_prior: item.betaPrior,
+                        target_width: item.targetWidth
+                    };
+                    
+                    // Try to insert, if it fails because of duplicate, update it
+                    const { data, error } = await supabase
+                        .from('ab_test_history')
+                        .upsert(supabaseItem, {
+                            onConflict: 'id',
+                            returning: 'minimal'
+                        });
+                    
+                    if (error) {
+                        console.error('Error syncing item to Supabase:', error);
+                        results.push({ success: false, error: error.message });
+                    } else {
+                        results.push({ success: true });
+                    }
+                }
+                
+                const successCount = results.filter(r => r.success).length;
+                showSyncStatus(`Synced ${successCount} of ${localHistory.length} items to Supabase`, successCount > 0);
             } catch (error) {
-                showSyncStatus(`Failed to sync to Gist: ${error.message}`, false);
+                showSyncStatus(`Failed to sync to Supabase: ${error.message}`, false);
             }
         }
         
-        async function fetchHistoryFromGist() {
-            if (!gistConfig) return;
+        async function fetchHistoryFromSupabase() {
+            if (!supabase) return;
             
             try {
-                const response = await fetch(`https://api.github.com/gists/${gistConfig.gistId}`);
-                
-                if (response.ok) {
-                    const gistData = await response.json();
-                    const historyFile = gistData.files['ab_test_history.json'];
-                    
-                    if (historyFile) {
-                        const remoteHistory = JSON.parse(historyFile.content);
-                        const localHistory = getFromStorage('abTestHistory');
-                        
-                        // Merge histories (simple approach: take the longer one)
-                        // In a real app, you'd want a more sophisticated merge strategy
-                        if (remoteHistory.length > localHistory.length) {
-                            localStorage.setItem('abTestHistory', JSON.stringify(remoteHistory));
-                            loadHistory();
-                            showSyncStatus('History updated from Gist successfully!', true);
-                        } else {
-                            showSyncStatus('History is up to date', true);
-                        }
-                    } else {
-                        // If no history file exists in Gist, upload the local one
-                        await syncHistoryToGist();
+                // Get current user
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    // Try to sign in anonymously
+                    const { data, error } = await supabase.auth.signInAnonymously();
+                    if (error) {
+                        showSyncStatus(`Failed to authenticate with Supabase: ${error.message}`, false);
+                        return;
                     }
+                }
+                
+                // Fetch history from Supabase
+                const { data, error } = await supabase
+                    .from('ab_test_history')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    showSyncStatus(`Failed to fetch from Supabase: ${error.message}`, false);
+                    return;
+                }
+                
+                // Convert Supabase data back to local format
+                const remoteHistory = data.map(item => ({
+                    testName: item.test_name,
+                    aSuccesses: item.a_successes,
+                    aTotal: item.a_total,
+                    bSuccesses: item.b_successes,
+                    bTotal: item.b_total,
+                    aConversion: item.a_conversion_rate,
+                    bConversion: item.b_conversion_rate,
+                    meanUplift: item.mean_uplift,
+                    ciLower: item.ci_lower,
+                    ciUpper: item.ci_upper,
+                    ciWidth: item.ci_width,
+                    probBBetter: item.prob_b_better,
+                    expectedLoss: item.expected_loss,
+                    nSimulations: item.n_simulations,
+                    alphaPrior: item.alpha_prior,
+                    betaPrior: item.beta_prior,
+                    targetWidth: item.target_width,
+                    timestamp: item.created_at
+                }));
+                
+                const localHistory = getFromStorage('abTestHistory');
+                
+                // Merge histories (simple approach: take the longer one)
+                // In a real app, you'd want a more sophisticated merge strategy
+                if (remoteHistory.length > localHistory.length) {
+                    localStorage.setItem('abTestHistory', JSON.stringify(remoteHistory));
+                    loadHistory();
+                    showSyncStatus('History updated from Supabase successfully!', true);
                 } else {
-                    const errorData = await response.json();
-                    showSyncStatus(`Failed to fetch from Gist: ${errorData.message}`, false);
+                    showSyncStatus('History is up to date', true);
                 }
             } catch (error) {
-                showSyncStatus(`Failed to fetch from Gist: ${error.message}`, false);
+                showSyncStatus(`Failed to fetch from Supabase: ${error.message}`, false);
             }
         }
         
@@ -1308,10 +1392,15 @@
             }, 3000);
         }
         
+        // Add event listeners for tab buttons
+        document.getElementById('calculator-tab').addEventListener('click', () => switchTab('calculator'));
+        document.getElementById('history-tab').addEventListener('click', () => switchTab('history'));
+        document.getElementById('progress-tab').addEventListener('click', () => switchTab('progress'));
+        
         // Initialize the app
         loadLastInputData();
         loadLastResults();
-        loadGistConfig();
+        loadSupabaseConfig();
     </script>
 </body>
 </html>

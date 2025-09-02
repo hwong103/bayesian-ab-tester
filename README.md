@@ -7,7 +7,7 @@ A powerful Bayesian A/B testing calculator that runs directly in your browser wi
 - **Bayesian Analysis**: Calculate conversion rates, relative uplift, credible intervals, and probability that variant B is better than control A
 - **Sample Size Estimation**: Determine how many additional samples you need to reach your desired confidence level
 - **History Tracking**: Save and review past test results
-- **Cross-Device Sync**: Sync your test history across devices using GitHub Gist
+- **Cross-Device Sync**: Sync your test history across devices using Supabase
 - **Export to CSV**: Export your test results for further analysis
 - **Progress Visualization**: Track test progress over time with interactive charts
 
@@ -23,35 +23,31 @@ A powerful Bayesian A/B testing calculator that runs directly in your browser wi
 4. Review the results including conversion rates, uplift, confidence intervals, and probability
 5. Check the sample size recommendation to determine how many more samples you need
 
-## Cross-Device Sync with GitHub Gist
+## Cross-Device Sync with Supabase
 
 To sync your test history across devices:
 
-1. Create a GitHub Gist:
-   - Go to https://gist.github.com/
-   - Sign in to your GitHub account
-   - Click "New gist"
-   - Set the filename to `ab_test_history.json`
-   - Copy the content from [ab_test_history_initial.json](ab_test_history_initial.json) into the file content
-   - Select "Private" (recommended for privacy)
-   - Click "Create secret gist"
-   - Copy the Gist ID from the URL (the long string of characters)
+1. Create a Supabase account:
+   - Go to https://supabase.com/
+   - Sign up for a free account
+   - Create a new project
 
-2. Create a GitHub Personal Access Token:
-   - Go to https://github.com/settings/tokens
-   - Click "Generate new token"
-   - Give it a descriptive name like "AB Test Calculator"
-   - Select "Gist" scope
-   - Generate the token and copy it (keep it secure!)
+2. Set up the database:
+   - In your Supabase project, go to the SQL Editor
+   - Run the SQL script from [supabase_schema.sql](supabase_schema.sql) to create the necessary tables and policies
 
-3. Configure sync in the calculator:
+3. Get your API credentials:
+   - In your Supabase project, go to Project Settings > API
+   - Copy your Project URL and Anonymous Key
+
+4. Configure sync in the calculator:
    - Open the "Test History" tab
-   - Click "Setup Gist Sync"
-   - Enter your Gist ID and Personal Access Token
+   - Click "Setup Supabase Sync"
+   - Enter your Project URL and Anonymous Key
    - Click "Save Configuration"
 
-4. Sync your data:
-   - Click "Sync with Gist" to sync your local history with the Gist
+5. Sync your data:
+   - Click "Sync with Supabase" to sync your local history with Supabase
    - The calculator will automatically sync when you save new results
 
 ## Technical Details
@@ -60,4 +56,4 @@ The calculator uses Monte Carlo simulation to perform Bayesian analysis with Bet
 
 ## Privacy
 
-All data is stored locally in your browser's localStorage. When using GitHub Gist sync, your data is stored in a private Gist that only you can access with your personal access token.
+All data is stored locally in your browser's localStorage. When using Supabase sync, your data is stored in your Supabase project and associated with an anonymous user ID. Only you can access your own test results.

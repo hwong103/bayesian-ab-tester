@@ -814,4 +814,236 @@
                     </div>
                 `;
                 
-                sampleSizeSection.
+                sampleSizeSection.style.display = 'block';
+                button.disabled = false;
+                button.textContent = 'Run Bayesian Analysis';
+            } catch (error) {
+                resultsContent.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                button.disabled = false;
+                button.textContent = 'Run Bayesian Analysis';
+            }
+        }
+        
+        function saveResult() {
+            if (!currentResults) {
+                alert('Please run a calculation first.');
+                return;
+            }
+            
+            const testName = document.getElementById('test-name').value || `Test ${new Date().toLocaleString()}`;
+            
+            const resultToSave = {
+                ...currentResults,
+                testName: testName
+            };
+            
+            if (saveToStorage('abTestHistory', resultToSave)) {
+                const saveButton = document.querySelector('.btn-success');
+                const originalText = saveButton.textContent;
+                saveButton.textContent = 'Saved!';
+                saveButton.disabled = true;
+                
+                setTimeout(() => {
+                    saveButton.textContent = originalText;
+                    saveButton.disabled = false;
+                }, 2000);
+            } else {
+                alert('Failed to save result. Storage not available.');
+            }
+        }
+        
+        function loadHistory() {
+            const historyContent = document.getElementById('history-content');
+            const history = getFromStorage();
+            
+            if (history.length === 0) {
+                historyContent.innerHTML = '<p class="loading">No saved results yet. Run calculations and save them to build your test history.</p>';
+                return;
+            }
+            
+            let tableHTML = `
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Date</th>
+                            <th>A Conv.</th>
+                            <th>B Conv.</th>
+                            <th>Uplift</th>
+                            <th>Prob. B > A</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            history.forEach((result, index) => {
+                const upliftClass = result.meanUplift > 0 ? 'positive' : 'negative';
+                const probClass = result.probBBetter > 0.5 ? 'positive' : 'negative';
+                
+                tableHTML += `
+                    <tr>
+                        <td>${result.testName || `Test ${index + 1}`}</td>
+                        <td>${new Date(result.timestamp).toLocaleDateString()}</td>
+                        <td>${(result.aConversion * 100).toFixed(2)}%</td>
+                        <td>${(result.bConversion * 100).toFixed(2)}%</td>
+                        <td class="${upliftClass}">${result.meanUplift.toFixed(2)}%</td>
+                        <td class="${probClass}">${(result.probBBetter * 100).toFixed(1)}%</td>
+                        <td>
+                            <button class="delete-btn" onclick="deleteResult(${index})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += `
+                    </tbody>
+                </table>
+            `;
+            
+            historyContent.innerHTML = tableHTML;
+        }
+        
+        function deleteResult(index) {
+            const history = getFromStorage();
+            history.splice(index, 1);
+            
+            try {
+                window.localStorage.setItem('abTestHistory', JSON.stringify(history));
+                loadHistory();
+            } catch (error) {
+                console.error('Failed to delete result:', error);
+                alert('Failed to delete result.');
+            }
+        }
+        
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all test history? This cannot be undone.')) {
+                if (clearStorage()) {
+                    loadHistory();
+                } else {
+                    alert('Failed to clear history. Storage not available.');
+                }
+            }
+        }
+        
+        function exportResults() {
+            const history = getFromStorage();
+            
+            if (history.length === 0) {
+                alert('No results to export.');
+                return;
+            }
+            
+            let csvContent = "Test Name,Date,A Conversion,B Conversion,Mean Uplift,CI Lower,CI Upper,Probability B > A,Expected Loss\n";
+            
+            history.forEach(result => {
+                csvContent += `"${result.testName || ''}",${new Date(result.timestamp).toLocaleDateString()},${result.aConversion},${result.bConversion},${result.meanUplift},${result.ciLower},${result.ciUpper},${result.probBBetter},${result.expectedLoss}\n`;
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'ab_test_results.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function loadProgressTracking() {
+            const selector = document.getElementById('test-selector');
+            const history = getFromStorage();
+            
+            // Clear existing options
+            selector.innerHTML = '<option value="">Select a test...</option>';
+            
+            // Add options for each test
+            history.forEach((result, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = result.testName || `Test ${index + 1}`;
+                selector.appendChild(option);
+            });
+            
+            // Clear chart if no test selected
+            if (!progressChart) {
+                const ctx = document.getElementById('progress-chart').getContext('2d');
+                progressChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        function updateProgressChart() {
+            const selectedIndex = document.getElementById('test-selector').value;
+            
+            if (selectedIndex === '') {
+                progressChart.data.labels = [];
+                progressChart.data.datasets = [];
+                progressChart.update();
+                document.getElementById('progress-stats').innerHTML = '';
+                return;
+            }
+            
+            const history = getFromStorage();
+            const selectedTest = history[selectedIndex];
+            
+            // For demo purposes, we'll create some mock progress data
+            // In a real implementation, this would come from actual test data over time
+            const labels = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
+            const data = [];
+            const baseConversion = selectedTest.aConversion;
+            const uplift = selectedTest.meanUplift / 100;
+            
+            // Generate mock data that converges toward the final result
+            for (let i = 0; i < labels.length; i++) {
+                const progress = (i + 1) / labels.length;
+                const variation = (Math.random() - 0.5) * 0.02; // ±1% variation
+                data.push((baseConversion * (1 + uplift * progress) + variation) * 100);
+            }
+            
+            progressChart.data.labels = labels;
+            progressChart.data.datasets = [{
+                label: 'Conversion Rate',
+                data: data,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                fill: true,
+                tension: 0.4
+            }];
+            
+            progressChart.update();
+            
+            // Update stats
+            const avgConversion = data.reduce((sum, val) => sum + val, 0) / data.length;
+            const finalConversion = selectedTest.bConversion * 100;
+            
+            document.getElementById('progress-stats').innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-label">Progress Summary</div>
+                    <div class="metric-value metric-small">
+                        Current: ${data[data.length - 1].toFixed(2)}% | 
+                        Final: ${finalConversion.toFixed(2)}% | 
+                        Average: ${avgConversion.toFixed(2)}%
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

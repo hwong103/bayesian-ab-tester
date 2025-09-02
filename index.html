@@ -332,6 +332,22 @@
             color: #721c24;
         }
         
+        .gist-setup {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #007bff;
+        }
+        
+        .gist-setup input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
@@ -461,10 +477,19 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3>Test History</h3>
                 <div>
-                    <button class="btn btn-secondary" onclick="syncHistory()">Sync History</button>
+                    <button class="btn btn-secondary" onclick="setupGist()">Setup Gist Sync</button>
+                    <button class="btn btn-secondary" onclick="syncWithGist()">Sync with Gist</button>
                     <button class="btn btn-secondary" onclick="exportResults()">Export CSV</button>
                     <button class="btn btn-danger" onclick="clearHistory()">Clear All</button>
                 </div>
+            </div>
+            
+            <div id="gist-setup" class="gist-setup" style="display: none;">
+                <h4>GitHub Gist Setup</h4>
+                <p>To enable cross-device sync, create a GitHub Gist and enter its ID below:</p>
+                <input type="text" id="gist-id" placeholder="Enter Gist ID (e.g., abc123def456...)" />
+                <input type="password" id="github-token" placeholder="Enter GitHub Personal Access Token" />
+                <button class="btn btn-primary" onclick="saveGistConfig()">Save Configuration</button>
             </div>
             
             <div id="history-content">
@@ -495,9 +520,11 @@
         let currentResults = null;
         let progressChart = null;
         let lastInputData = null;
+        let gistConfig = null;
         
-        // Load last input data on page load
+        // Load configuration on page load
         window.addEventListener('DOMContentLoaded', function() {
+            loadGistConfig();
             loadLastInputData();
             loadLastResults();
         });
@@ -946,8 +973,8 @@
                     saveButton.disabled = false;
                 }, 2000);
                 
-                // Try to sync with cloud storage
-                syncHistoryToCloud();
+                // Try to sync with Gist
+                syncHistoryToGist();
             } else {
                 alert('Failed to save result. Storage not available.');
             }
@@ -1012,7 +1039,7 @@
             try {
                 localStorage.setItem('abTestHistory', JSON.stringify(history));
                 loadHistory();
-                syncHistoryToCloud();
+                syncHistoryToGist();
             } catch (error) {
                 console.error('Failed to delete result:', error);
                 alert('Failed to delete result.');
@@ -1023,7 +1050,7 @@
             if (confirm('Are you sure you want to clear all test history? This cannot be undone.')) {
                 if (clearStorage('abTestHistory')) {
                     loadHistory();
-                    syncHistoryToCloud();
+                    syncHistoryToGist();
                 } else {
                     alert('Failed to clear history. Storage not available.');
                 }
@@ -1148,6 +1175,127 @@
             `;
         }
         
+        // GitHub Gist functions
+        function setupGist() {
+            document.getElementById('gist-setup').style.display = 'block';
+            if (gistConfig) {
+                document.getElementById('gist-id').value = gistConfig.gistId || '';
+            }
+        }
+        
+        function saveGistConfig() {
+            const gistId = document.getElementById('gist-id').value.trim();
+            const token = document.getElementById('github-token').value.trim();
+            
+            if (!gistId || !token) {
+                alert('Please enter both Gist ID and GitHub token');
+                return;
+            }
+            
+            gistConfig = {
+                gistId: gistId,
+                token: token
+            };
+            
+            try {
+                localStorage.setItem('abTestGistConfig', JSON.stringify(gistConfig));
+                document.getElementById('gist-setup').style.display = 'none';
+                document.getElementById('github-token').value = ''; // Clear token field for security
+                showSyncStatus('Gist configuration saved successfully!', true);
+            } catch (e) {
+                showSyncStatus('Failed to save Gist configuration', false);
+            }
+        }
+        
+        function loadGistConfig() {
+            try {
+                gistConfig = JSON.parse(localStorage.getItem('abTestGistConfig') || 'null');
+            } catch (e) {
+                gistConfig = null;
+            }
+        }
+        
+        async function syncWithGist() {
+            if (!gistConfig) {
+                alert('Please configure Gist sync first');
+                setupGist();
+                return;
+            }
+            
+            // First sync local changes to Gist, then fetch any remote changes
+            await syncHistoryToGist();
+            await fetchHistoryFromGist();
+        }
+        
+        async function syncHistoryToGist() {
+            if (!gistConfig) return;
+            
+            try {
+                const localHistory = getFromStorage('abTestHistory');
+                const historyJson = JSON.stringify(localHistory, null, 2);
+                
+                const response = await fetch(`https://api.github.com/gists/${gistConfig.gistId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${gistConfig.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        files: {
+                            'ab_test_history.json': {
+                                content: historyJson
+                            }
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    showSyncStatus('History synced to Gist successfully!', true);
+                } else {
+                    const errorData = await response.json();
+                    showSyncStatus(`Failed to sync to Gist: ${errorData.message}`, false);
+                }
+            } catch (error) {
+                showSyncStatus(`Failed to sync to Gist: ${error.message}`, false);
+            }
+        }
+        
+        async function fetchHistoryFromGist() {
+            if (!gistConfig) return;
+            
+            try {
+                const response = await fetch(`https://api.github.com/gists/${gistConfig.gistId}`);
+                
+                if (response.ok) {
+                    const gistData = await response.json();
+                    const historyFile = gistData.files['ab_test_history.json'];
+                    
+                    if (historyFile) {
+                        const remoteHistory = JSON.parse(historyFile.content);
+                        const localHistory = getFromStorage('abTestHistory');
+                        
+                        // Merge histories (simple approach: take the longer one)
+                        // In a real app, you'd want a more sophisticated merge strategy
+                        if (remoteHistory.length > localHistory.length) {
+                            localStorage.setItem('abTestHistory', JSON.stringify(remoteHistory));
+                            loadHistory();
+                            showSyncStatus('History updated from Gist successfully!', true);
+                        } else {
+                            showSyncStatus('History is up to date', true);
+                        }
+                    } else {
+                        // If no history file exists in Gist, upload the local one
+                        await syncHistoryToGist();
+                    }
+                } else {
+                    const errorData = await response.json();
+                    showSyncStatus(`Failed to fetch from Gist: ${errorData.message}`, false);
+                }
+            } catch (error) {
+                showSyncStatus(`Failed to fetch from Gist: ${error.message}`, false);
+            }
+        }
+        
         // Cloud synchronization functions
         function showSyncStatus(message, isSuccess) {
             const statusDiv = document.getElementById('sync-status');
@@ -1160,19 +1308,10 @@
             }, 3000);
         }
         
-        function syncHistory() {
-            syncHistoryToCloud();
-        }
-        
-        async function syncHistoryToCloud() {
-            // In a real implementation, you would sync with a cloud service here
-            // For now, we'll just show a message
-            showSyncStatus('History synced successfully!', true);
-        }
-        
         // Initialize the app
         loadLastInputData();
         loadLastResults();
+        loadGistConfig();
     </script>
 </body>
 </html>

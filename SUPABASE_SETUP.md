@@ -12,6 +12,15 @@ This guide explains how to set up Supabase for cross-device synchronization of y
 1. In your Supabase project, go to the SQL Editor
 2. Run the SQL script from `supabase_schema.sql` to create the necessary tables and policies
 
+## Enabling Anonymous Authentication
+
+1. In your Supabase project, go to Authentication > Settings
+2. Find the "Enable Anonymous Sign-ins" option
+3. Toggle it to "Enabled"
+4. Click "Save"
+
+This step is crucial for the Bayesian A/B Test Calculator to work properly, as it uses anonymous authentication to create a unique user ID for each browser.
+
 ## Configuring the Application
 
 1. In your Supabase project, go to Project Settings > API
@@ -31,3 +40,10 @@ The calculator uses Supabase's anonymous authentication to create a unique user 
 - Each user can only access their own test results
 - Data is stored securely in your Supabase project
 - No sensitive information is stored in the database
+
+## Troubleshooting
+
+If you encounter the error "Anonymous sign-ins are disabled":
+1. Follow the "Enabling Anonymous Authentication" steps above
+2. Save your Supabase configuration again in the calculator
+3. Try syncing again

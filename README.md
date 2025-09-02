@@ -36,6 +36,12 @@ To sync your test history across devices:
    - In your Supabase project, go to the SQL Editor
    - Run the SQL script from [supabase_schema.sql](supabase_schema.sql) to create the necessary tables and policies
 
+3. Enable anonymous authentication:
+   - In your Supabase project, go to Authentication > Settings
+   - Find the "Enable Anonymous Sign-ins" option
+   - Toggle it to "Enabled"
+   - Click "Save"
+
 3. Get your API credentials:
    - In your Supabase project, go to Project Settings > API
    - Copy your Project URL and Anonymous Key

@@ -1264,7 +1264,11 @@
                     // Try to sign in anonymously
                     const { data, error } = await supabase.auth.signInAnonymously();
                     if (error) {
-                        showSyncStatus(`Failed to authenticate with Supabase: ${error.message}`, false);
+                        if (error.message.includes('Anonymous sign-ins are disabled')) {
+                            showSyncStatus('Anonymous sign-ins are disabled in your Supabase project. Please enable them in your Supabase dashboard.', false);
+                        } else {
+                            showSyncStatus(`Failed to authenticate with Supabase: ${error.message}`, false);
+                        }
                         return;
                     }
                 }
@@ -1326,7 +1330,11 @@
                     // Try to sign in anonymously
                     const { data, error } = await supabase.auth.signInAnonymously();
                     if (error) {
-                        showSyncStatus(`Failed to authenticate with Supabase: ${error.message}`, false);
+                        if (error.message.includes('Anonymous sign-ins are disabled')) {
+                            showSyncStatus('Anonymous sign-ins are disabled in your Supabase project. Please enable them in your Supabase dashboard.', false);
+                        } else {
+                            showSyncStatus(`Failed to authenticate with Supabase: ${error.message}`, false);
+                        }
                         return;
                     }
                 }
